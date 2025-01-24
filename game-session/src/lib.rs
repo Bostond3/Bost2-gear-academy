@@ -32,7 +32,7 @@ fn handle_start_game() {
     };
     let user = msg::source();
 
-    debug!("handle_start_game: user={:?}", user); 
+    debug!("handle_start_game: user={:?}", user); // 输出当前用户信息
 
     if !state.user_to_session.contains_key(&user) {
         state.user_to_session.insert(
@@ -114,7 +114,7 @@ fn handle_check_word(word: String) {
     };
     let user = msg::source();
 
-    debug!("handle_check_word: word={}, user={:?}", word, user); 
+    debug!("handle_check_word: word={}, user={:?}", word, user); // 打印检查的单词和用户
 
     if !state.user_to_session.contains_key(&user) {
         panic!("handle_check_word: non-existing user");
