@@ -6,7 +6,7 @@ use gtest::{Program, System};
 
 const WORDLE_PROGRAM_ADDRESS: u64 = 200;
 
-const USER: u64 = 1;
+const USER: u64 = 1001;
 const BALANCE: u128 = 666666666666666666666;
 
 #[test]
