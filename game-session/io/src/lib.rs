@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::redundant_field_names)]
 
 use gmeta::{InOut, Metadata, Out};
 use gstd::{collections::HashMap, prelude::*, ActorId, MessageId};
@@ -77,7 +78,7 @@ pub struct GameSessionState {
     pub user_to_session: HashMap<ActorId, Session>,
 }
 
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, Encode, Decode, TypeInfo, Default)]
 #[codec(crate = gstd::codec)]
 #[scale_info(crate = gstd::scale_info)]
 pub struct State {
@@ -98,7 +99,7 @@ impl From<GameSessionState> for State {
             .collect();
 
         Self {
-            wordle_program: wordle_program,
+            wordle_program,
             user_sessions,
         }
     }
