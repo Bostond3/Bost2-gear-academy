@@ -1,4 +1,6 @@
 #![no_std]
+#![allow(warnings)]
+
 use gstd::{collections::HashMap, exec, msg, prelude::*, ActorId};
 use wordle_io::*;
 
