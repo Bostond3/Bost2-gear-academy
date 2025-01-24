@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(warnings)]
 use game_session_io::*;
 use gstd::{collections::HashMap, debug, exec, msg, prelude::*, ActorId};
 use wordle_io::{Action, Event};
@@ -31,6 +32,8 @@ fn handle_start_game() {
     };
     let user = msg::source();
 
+    debug!("handle_start_game: user={:?}", user); 
+
     if !state.user_to_session.contains_key(&user) {
         state.user_to_session.insert(
             user,
@@ -46,6 +49,11 @@ fn handle_start_game() {
 
     let session: &mut Session = state.user_to_session.get_mut(&user).unwrap();
 
+    debug!(
+        "handle_start_game: current session status={:?}",
+        session.status
+    );
+
     match &session.status {
         SessionStatus::StartGameWaiting | SessionStatus::CheckWordWaiting => {
             let msg_id: gstd::MessageId =
@@ -53,9 +61,19 @@ fn handle_start_game() {
                     .expect("handle_start_game: error in sending `Action::StartGame`");
             session.msg_ids = (msg_id, msg::id());
             session.status = SessionStatus::StartGameSent;
+
+            debug!(
+                "handle_start_game: StartGameSent, msg_id={:?}, session={:?}",
+                msg_id, session
+            );
             exec::wait();
         }
         SessionStatus::ReplyReceived(recv_event) => {
+            debug!(
+                "handle_start_game: current block height: {}",
+                exec::block_height()
+            );
+
             if let SessionEvent::GameStarted = recv_event {
                 session.start_block = exec::block_height();
                 session.check_count = 0;
@@ -64,6 +82,11 @@ fn handle_start_game() {
                 session.result = SessionResult::Ongoing;
                 msg::reply(SessionEvent::GameStarted, 0)
                     .expect("Error in sending `GameStarted` reply");
+
+                debug!(
+                    "handle_start_game: GameStarted received, session={:?}",
+                    session
+                );
 
                 msg::send_delayed(
                     exec::program_id(),
@@ -91,11 +114,15 @@ fn handle_check_word(word: String) {
     };
     let user = msg::source();
 
+    debug!("handle_check_word: word={}, user={:?}", word, user); 
+
     if !state.user_to_session.contains_key(&user) {
         panic!("handle_check_word: non-existing user");
     }
 
     let session: &mut Session = state.user_to_session.get_mut(&user).unwrap();
+
+    debug!("handle_check_word: current session{:?}", session);
 
     match &session.status {
         SessionStatus::CheckWordWaiting => {
@@ -122,7 +149,10 @@ fn handle_check_word(word: String) {
                 session.msg_ids = (msg_id, msg::id());
                 session.status = SessionStatus::CheckWordSent;
 
-                debug!("handle_check_word: `CheckWord` wait");
+                debug!(
+                    "handle_check_word: CheckWordSent, msg_id={:?}, session={:?}",
+                    msg_id, session
+                );
                 exec::wait();
             }
         }
@@ -162,6 +192,9 @@ fn handle_check_word(word: String) {
                     session.result = SessionResult::Ongoing;
                     msg::reply(event, 0)
                         .expect("handle_check_word: error in replying `WordChecked`");
+
+                    debug!("handle_check_word: WordChecked, session={:?}", session);
+                    // 打印检查结果后的状态
                 }
             } else {
                 panic!(
