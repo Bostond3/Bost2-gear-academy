@@ -1,105 +1,167 @@
-#![no_std]
+#![allow(warnings)]
 
-use gmeta::{InOut, Metadata, Out};
-use gstd::{collections::HashMap, prelude::*, ActorId, MessageId};
-use wordle_io::Event;
+use game_session_io::*;
+use gstd::ActorId;
+use gtest::{Program, System};
 
-pub struct GameSessionMetadata;
+const WORDLE_PROGRAM_ADDRESS: u64 = 200;
 
-impl Metadata for GameSessionMetadata {
-    type Init = InOut<ActorId, SessionEvent>;
-    type Handle = InOut<SessionAction, SessionEvent>;
-    type Others = ();
-    type Reply = InOut<Event, SessionEvent>;
-    type Signal = ();
-    type State = Out<State>;
+const USER: u64 = 1;
+const BALANCE: u128 = 666666666666666666666;
+
+#[test]
+fn test_initialization() {
+    let system = System::new();
+    system.init_logger();
+    system.mint_to(USER, BALANCE);
+    let game_session_program = Program::from_file(
+        &system,
+        "../target/wasm32-unknown-unknown/debug/game_session.opt.wasm",
+    );
+    let wordle_program = Program::from_file(
+        &system,
+        "../target/wasm32-unknown-unknown/debug/wordle.opt.wasm",
+    );
+    wordle_program.send_bytes(USER, []);
+    system.run_next_block();
+
+    let wordle_program_address: ActorId = WORDLE_PROGRAM_ADDRESS.into();
+
+    game_session_program.send(USER, wordle_program_address);
+    system.run_next_block();
+
+    let state: State = game_session_program.read_state(()).unwrap();
+    assert_eq!(state.wordle_program, wordle_program_address);
+    assert!(state.user_sessions.is_empty());
 }
 
-#[derive(Debug, Clone, Encode, Decode, TypeInfo)]
-pub enum SessionAction {
-    StartGame,
-    CheckWord { word: String },
-    CheckGameStatus { user: ActorId },
+#[test]
+fn test_start_game() {
+    let system = System::new();
+    system.init_logger();
+    system.mint_to(USER, BALANCE);
+    let game_session_program = Program::from_file(
+        &system,
+        "../target/wasm32-unknown-unknown/debug/game_session.opt.wasm",
+    );
+    let wordle_program = Program::from_file(
+        &system,
+        "../target/wasm32-unknown-unknown/debug/wordle.opt.wasm",
+    );
+    wordle_program.send_bytes(USER, []);
+    system.run_next_block();
+
+    let wordle_program_address: ActorId = WORDLE_PROGRAM_ADDRESS.into();
+
+    game_session_program.send(USER, wordle_program_address);
+    system.run_next_block();
+
+    let state: State = game_session_program.read_state(()).unwrap();
+    assert_eq!(state.wordle_program, wordle_program_address);
+    assert!(state.user_sessions.is_empty());
+
+    game_session_program.send(USER, SessionAction::StartGame);
+    system.run_next_block();
+
+    let state: State = game_session_program.read_state(()).unwrap();
+    assert_eq!(state.user_sessions.len(), 1);
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq, TypeInfo)]
-pub enum SessionEvent {
-    Initialized,
-    GameStarted,
-    WordChecked {
-        correct_positions: Vec<u8>,
-        contained_in_word: Vec<u8>,
-    },
-    GameOver {
-        result: SessionResult,
-    },
+#[test]
+fn test_check_word() {
+    let system = System::new();
+    system.init_logger();
+    system.mint_to(USER, BALANCE);
+    let game_session_program = Program::from_file(
+        &system,
+        "../target/wasm32-unknown-unknown/debug/game_session.opt.wasm",
+    );
+    let wordle_program = Program::from_file(
+        &system,
+        "../target/wasm32-unknown-unknown/debug/wordle.opt.wasm",
+    );
+    wordle_program.send_bytes(USER, []);
+    system.run_next_block();
+
+    let wordle_program_address: ActorId = WORDLE_PROGRAM_ADDRESS.into();
+
+    game_session_program.send(USER, wordle_program_address);
+    system.run_next_block();
+
+    let state: State = game_session_program.read_state(()).unwrap();
+    assert_eq!(state.wordle_program, wordle_program_address);
+    assert!(state.user_sessions.is_empty());
+
+    game_session_program.send(USER, SessionAction::StartGame);
+    system.run_next_block();
+
+    let state: State = game_session_program.read_state(()).unwrap();
+    assert_eq!(state.user_sessions.len(), 1);
+
+    game_session_program.send(
+        USER,
+        SessionAction::CheckWord {
+            word: "house".to_string(),
+        },
+    );
+    system.run_next_block();
+
+    let state: State = game_session_program.read_state(()).unwrap();
+    assert_eq!(state.user_sessions.len(), 1);
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq, TypeInfo)]
-pub enum SessionResult {
-    Ongoing,
-    Win,
-    Lose,
-}
+#[test]
+fn test_game_win() {
+    let system = System::new();
+    system.init_logger();
+    system.mint_to(USER, BALANCE);
+    let game_session_program = Program::from_file(
+        &system,
+        "../target/wasm32-unknown-unknown/debug/game_session.opt.wasm",
+    );
+    let wordle_program = Program::from_file(
+        &system,
+        "../target/wasm32-unknown-unknown/debug/wordle.opt.wasm",
+    );
+    wordle_program.send_bytes(USER, []);
+    system.run_next_block();
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq, TypeInfo)]
-pub enum SessionStatus {
-    StartGameWaiting,
-    StartGameSent,
-    CheckWordWaiting,
-    CheckWordSent,
-    ReplyReceived(SessionEvent),
-}
+    let wordle_program_address: ActorId = WORDLE_PROGRAM_ADDRESS.into();
 
-type SentMessageId = MessageId;
-type OriginalMessageId = MessageId;
+    game_session_program.send(USER, wordle_program_address);
+    system.run_next_block();
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
-pub struct Session {
-    pub start_block: u32,
-    pub check_count: u8,
-    pub msg_ids: (SentMessageId, OriginalMessageId),
-    pub status: SessionStatus,
-    pub result: SessionResult,
-}
+    let state: State = game_session_program.read_state(()).unwrap();
+    assert_eq!(state.wordle_program, wordle_program_address);
+    assert!(state.user_sessions.is_empty());
 
-#[derive(Debug, Clone, Encode, Decode, TypeInfo)]
-pub enum StateQuery {
-    WordleProgram,
-    UserSession { user: ActorId },
-}
+    game_session_program.send(USER, SessionAction::StartGame);
+    system.run_next_block();
 
-#[derive(Default, Debug, PartialEq, Clone)]
-pub struct GameSessionState {
-    pub wordle_program: ActorId,
-    pub user_to_session: HashMap<ActorId, Session>,
-}
+    let state: State = game_session_program.read_state(()).unwrap();
+    assert_eq!(state.user_sessions.len(), 1);
 
-#[derive(Debug, Encode, Decode, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
-pub struct State {
-    pub wordle_program: ActorId,
-    pub user_sessions: Vec<(ActorId, Session)>,
-}
-
-impl From<GameSessionState> for State {
-    fn from(state: GameSessionState) -> Self {
-        let GameSessionState {
-            wordle_program,
-            user_to_session,
-        } = state;
-
-        let user_sessions = user_to_session
-            .iter()
-            .map(|(user, session)| (*user, session.clone()))
-            .collect();
-
-        Self {
-            wordle_program: wordle_program,
-            user_sessions,
-        }
-    }
+    game_session_program.send(
+        USER,
+        SessionAction::CheckWord {
+            word: "house".to_string(),
+        },
+    );
+    system.run_next_block();
+    game_session_program.send(
+        USER,
+        SessionAction::CheckWord {
+            word: "human".to_string(),
+        },
+    );
+    system.run_next_block();
+    game_session_program.send(
+        USER,
+        SessionAction::CheckWord {
+            word: "horse".to_string(),
+        },
+    );
+    system.run_next_block();
+    let state: State = game_session_program.read_state(()).unwrap();
+    assert_eq!(state.user_sessions.len(), 1);
 }
